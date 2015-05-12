@@ -2158,7 +2158,7 @@ PyObject* Entity::__py_pyEntitiesInRange(PyObject* self, PyObject* args)
 			return 0;
 		}
 
-		if(pyEntityType != Py_None && !PyUnicode_Check(pyEntityType))
+		if(pyEntityType && pyEntityType != Py_None && !PyUnicode_Check(pyEntityType))
 		{
 			PyErr_Format(PyExc_TypeError, "Entity::entitiesInRange: args(entityType) is error!");
 			PyErr_PrintEx(0);
@@ -2175,7 +2175,7 @@ PyObject* Entity::__py_pyEntitiesInRange(PyObject* self, PyObject* args)
 			return 0;
 		}
 		
-		if(pyEntityType != Py_None && !PyUnicode_Check(pyEntityType))
+		if(pyEntityType && pyEntityType != Py_None && !PyUnicode_Check(pyEntityType))
 		{
 			PyErr_Format(PyExc_TypeError, "Entity::entitiesInRange: args(entityType) is error!");
 			PyErr_PrintEx(0);
@@ -2556,6 +2556,22 @@ void Entity::teleportLocal(PyObject_ptr nearbyMBRef, Position3D& pos, Direction3
 
 	// 此时不会扰动ranglist
 	this->setPositionAndDirection(pos, dir);
+
+	if(this->pWitness())
+	{
+		// 通知位置强制改变
+		Network::Bundle* pSendBundle = Network::Bundle::ObjPool().createObject();
+		Network::Bundle* pForwardBundle = Network::Bundle::ObjPool().createObject();
+
+		(*pForwardBundle).newMessage(ClientInterface::onSetEntityPosAndDir);
+		(*pForwardBundle) << id();
+		(*pForwardBundle) << pos.x << pos.y << pos.z;
+		(*pForwardBundle) << direction().roll() << direction().pitch() << direction().yaw();
+
+		NETWORK_ENTITY_MESSAGE_FORWARD_CLIENT(id(), (*pSendBundle), (*pForwardBundle));
+		this->pWitness()->sendToClient(ClientInterface::onSetEntityPosAndDir, pSendBundle);
+		Network::Bundle::ObjPool().reclaimObject(pForwardBundle);
+	}
 
 	currspace->addEntityToNode(this);
 
